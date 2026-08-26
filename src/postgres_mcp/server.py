@@ -21,6 +21,8 @@ from postgres_mcp.index.dta_calc import DatabaseTuningAdvisor
 
 from .artifacts import ErrorResult
 from .artifacts import ExplainPlanArtifact
+from .context import apply_server_instructions
+from .context import register_context_resources
 from .database_health import DatabaseHealthTool
 from .database_health import HealthType
 from .explain import ExplainPlanTool
@@ -596,6 +598,20 @@ async def main():
         default=8000,
         help="Port for streamable HTTP server (default: 8000)",
     )
+    parser.add_argument(
+        "--context-path",
+        type=str,
+        default=None,
+        help="Path to a markdown file or directory of markdown files to expose as MCP resources "
+        "(or set the CONTEXT_PATH environment variable)",
+    )
+    parser.add_argument(
+        "--instructions-path",
+        type=str,
+        default=None,
+        help="Path to a text file whose contents are sent to clients as the server's MCP "
+        "instructions at initialize (or set the INSTRUCTIONS_PATH environment variable)",
+    )
 
     args = parser.parse_args()
 
@@ -624,6 +640,16 @@ async def main():
         )
 
     logger.info(f"Starting PostgreSQL MCP Server in {current_access_mode.upper()} mode")
+
+    # Register context resources from environment variable or command line, if provided
+    context_path = os.environ.get("CONTEXT_PATH", args.context_path)
+    if context_path:
+        register_context_resources(mcp, context_path)
+
+    # Load server instructions from environment variable or command line, if provided
+    instructions_path = os.environ.get("INSTRUCTIONS_PATH", args.instructions_path)
+    if instructions_path:
+        apply_server_instructions(mcp, instructions_path)
 
     # Get database URL from environment variable or command line
     database_url = os.environ.get("DATABASE_URI", args.database_url)

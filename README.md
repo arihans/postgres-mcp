@@ -227,6 +227,55 @@ Postgres MCP Pro supports multiple *access modes* to give you control over the o
 To use restricted mode, replace `--access-mode=unrestricted` with `--access-mode=restricted` in the configuration examples above.
 
 
+##### Context Resources
+
+Postgres MCP Pro can expose a directory (or single file) of markdown documents as [MCP resources](https://modelcontextprotocol.io/docs/concepts/resources) — useful for giving the AI assistant curated context such as table schema notes, business logic, or query conventions that go beyond what it can discover by introspecting the database itself.
+
+Each markdown file becomes its own resource. The resource's name and description — the metadata an MCP client shows when picking which resource to read — come from an optional YAML frontmatter block at the top of the file; the frontmatter itself is stripped before the content is served:
+
+```markdown
+---
+name: Orders
+description: Orders table schema, including the refund_status enum and its valid transitions
+---
+
+# Orders
+
+...
+```
+
+If a file has no `description`, its filename is used instead, and it's still registered (a warning is logged). Only `.md`/`.markdown` files are picked up; other files in the directory are ignored, as are dotfiles/dot-directories.
+
+Set the path via the `--context-path` flag or the `CONTEXT_PATH` environment variable (the environment variable takes precedence):
+
+```bash
+postgres-mcp postgresql://username:password@localhost:5432/dbname --context-path=/path/to/context
+```
+
+With Docker, mount the directory as a volume and point `CONTEXT_PATH` at the mount:
+
+```bash
+docker run -p 8000:8000 \
+  -e DATABASE_URI=postgresql://username:password@localhost:5432/dbname \
+  -e CONTEXT_PATH=/context \
+  -v /path/to/context:/context:ro \
+  crystaldba/postgres-mcp --access-mode=unrestricted --transport=sse
+```
+
+Note that resource support varies by MCP client — some surface resources for the user to attach manually rather than letting the model fetch them autonomously. Check your client's documentation if the assistant doesn't seem to be picking them up on its own.
+
+
+##### Server Instructions
+
+Context resources are opportunistic — a client may never fetch one. For behavior that must apply on every turn (scope restrictions, tone, what never to reveal), use `--instructions-path` / `INSTRUCTIONS_PATH` instead: the file's contents are sent to every client automatically as part of the MCP `initialize` handshake, the same way `--context-path` works but without depending on the model choosing to read anything.
+
+```bash
+postgres-mcp postgresql://username:password@localhost:5432/dbname --instructions-path=/path/to/instructions.md
+```
+
+Unlike context resources this isn't split into multiple files or parsed for frontmatter — point it at one file whose raw contents become the server's instructions. Support for surfacing server instructions to the model still varies by client, so this is more reliable than a resource but not a hard guarantee; genuine access-control requirements (e.g. "never query these tables") still need enforcement at the database layer (a restricted Postgres role), not just prompt instructions layered on top of `--access-mode`.
+
+
 #### Other MCP Clients
 
 Many MCP clients have similar configuration files to Claude Desktop, and you can adapt the examples above to work with the client of your choice.
