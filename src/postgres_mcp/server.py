@@ -36,16 +36,58 @@ from .sql import check_hypopg_installation_status
 from .sql import obfuscate_password
 from .top_queries import TopQueriesCalc
 
-# Initialize FastMCP with default settings
-mcp = FastMCP("postgres-mcp")
+logger = logging.getLogger(__name__)
+
+
+# Initialize FastMCP. When MCP_AUTH_ENABLED is set, run as an OAuth 2.1 Resource
+# Server: validate bearer tokens against an external Authorization Server via RFC
+# 7662 introspection and auto-serve RFC 9728 protected-resource metadata plus the
+# 401 WWW-Authenticate challenge. Otherwise (stdio, tests, unauthenticated HTTP)
+# construct a plain server with no auth.
+def _build_mcp() -> FastMCP:
+    if os.environ.get("MCP_AUTH_ENABLED", "").strip().lower() not in ("1", "true", "yes", "on"):
+        return FastMCP("postgres-mcp")
+
+    from urllib.parse import urlparse
+
+    from mcp.server.auth.settings import AuthSettings
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    from .auth import MoebliIntrospectionVerifier
+
+    issuer = os.environ["MCP_AUTH_ISSUER"]
+    resource = os.environ["MCP_RESOURCE_URL"]
+    verifier = MoebliIntrospectionVerifier(
+        issuer=issuer,
+        resource=resource,
+        client_id=os.environ["MCP_AUTH_CLIENT_ID"],
+        client_secret=os.environ["MCP_AUTH_CLIENT_SECRET"],
+        introspection_url=os.environ.get("MCP_AUTH_INTROSPECTION_URL"),
+    )
+    logger.info("OAuth resource-server mode: issuer=%s resource=%s", issuer, resource)
+    return FastMCP(
+        "postgres-mcp",
+        token_verifier=verifier,
+        auth=AuthSettings(
+            issuer_url=issuer,
+            resource_server_url=resource,
+            required_scopes=None,
+        ),
+        # Keep the Streamable HTTP path aligned with the token audience.
+        streamable_http_path=urlparse(resource).path or "/mcp",
+        # Terminates behind nginx, which does its own host checks; the built-in
+        # localhost DNS-rebinding guard would reject the public Host header.
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    )
+
+
+mcp = _build_mcp()
 
 # Constants
 PG_STAT_STATEMENTS = "pg_stat_statements"
 HYPOPG_EXTENSION = "hypopg"
 
 ResponseType = List[types.TextContent | types.ImageContent | types.EmbeddedResource]
-
-logger = logging.getLogger(__name__)
 
 
 class AccessMode(str, Enum):

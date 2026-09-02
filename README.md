@@ -325,6 +325,48 @@ For Windsurf, the format in `mcp_config.json` is slightly different:
 }
 ```
 
+## Streamable HTTP Transport with OAuth
+
+Start the server with `--transport=streamable-http` to serve the modern
+[Streamable HTTP transport](https://modelcontextprotocol.io/specification/basic/transports).
+By default it is unauthenticated; set `MCP_AUTH_ENABLED=true` to run the server as
+an OAuth 2.1 **Resource Server**. In that mode it:
+
+- validates every request's `Authorization: Bearer` token against an external
+  Authorization Server's [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)
+  introspection endpoint (tokens may be opaque),
+- checks the token audience (`aud`) equals `MCP_RESOURCE_URL`
+  ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html)),
+- serves [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) protected-resource
+  metadata at `/.well-known/oauth-protected-resource<path>` and returns
+  `401` with a `WWW-Authenticate: Bearer resource_metadata=...` challenge for
+  missing/invalid tokens.
+
+Token issuance, login, and consent are entirely the Authorization Server's job —
+this server never sees user credentials and issues no tokens.
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `MCP_AUTH_ENABLED` | yes (to enable) | `true` / `1` / `yes` / `on` turns on Resource Server mode |
+| `MCP_AUTH_ISSUER` | yes | Authorization Server issuer URL (e.g. `https://auth.example.com`); its `/.well-known/oauth-authorization-server` is read to discover the introspection endpoint |
+| `MCP_RESOURCE_URL` | yes | This server's canonical URL, e.g. `https://mcp.example.com/mcp`. Used as the RFC 9728 `resource`, the expected token `aud`, and the Streamable HTTP path |
+| `MCP_AUTH_CLIENT_ID` / `MCP_AUTH_CLIENT_SECRET` | yes | Confidential client credentials this server uses to authenticate its introspection calls (HTTP Basic) |
+| `MCP_AUTH_INTROSPECTION_URL` | no | Explicit introspection endpoint; skips discovery when set |
+
+```bash
+docker run -p 8000:8000 \
+  -e DATABASE_URI=postgresql://username:password@localhost:5432/dbname \
+  -e MCP_AUTH_ENABLED=true \
+  -e MCP_AUTH_ISSUER=https://auth.example.com \
+  -e MCP_RESOURCE_URL=https://mcp.example.com/mcp \
+  -e MCP_AUTH_CLIENT_ID=... -e MCP_AUTH_CLIENT_SECRET=... \
+  crystaldba/postgres-mcp --access-mode=restricted --transport=streamable-http
+```
+
+The reverse proxy in front only needs to terminate TLS, forward the
+`Authorization` header, and disable response buffering — it performs no auth
+itself.
+
 ## Postgres Extension Installation (Optional)
 
 To enable index tuning and comprehensive performance analysis you need to load the `pg_stat_statements` and `hypopg` extensions on your database.

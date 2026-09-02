@@ -62,23 +62,30 @@ if [[ -n "$DATABASE_URI" && "$DATABASE_URI" == *"postgres"*"://"*"localhost"* ]]
     fi
 fi
 
-# Check if SSE transport is specified and --sse-host is not already set
+# Check which HTTP transport is specified and whether its bind host is already set
 has_sse=false
 has_sse_host=false
+has_streamable=false
+has_streamable_host=false
 
 for arg in "${processed_args[@]}"; do
     if [[ "$arg" == "--transport" ]]; then
-        # Check next argument for "sse"
+        # Check remaining arguments for the transport value
         for next_arg in "${processed_args[@]}"; do
             if [[ "$next_arg" == "sse" ]]; then
                 has_sse=true
-                break
+            elif [[ "$next_arg" == "streamable-http" ]]; then
+                has_streamable=true
             fi
         done
     elif [[ "$arg" == "--transport=sse" ]]; then
         has_sse=true
+    elif [[ "$arg" == "--transport=streamable-http" ]]; then
+        has_streamable=true
     elif [[ "$arg" == "--sse-host"* ]]; then
         has_sse_host=true
+    elif [[ "$arg" == "--streamable-http-host"* ]]; then
+        has_streamable_host=true
     fi
 done
 
@@ -86,6 +93,12 @@ done
 if [[ "$has_sse" == true ]] && [[ "$has_sse_host" == false ]]; then
     echo "SSE transport detected, adding --sse-host=0.0.0.0" >&2
     processed_args+=("--sse-host=0.0.0.0")
+fi
+
+# Add --streamable-http-host if needed
+if [[ "$has_streamable" == true ]] && [[ "$has_streamable_host" == false ]]; then
+    echo "Streamable HTTP transport detected, adding --streamable-http-host=0.0.0.0" >&2
+    processed_args+=("--streamable-http-host=0.0.0.0")
 fi
 
 echo "----------------" >&2
