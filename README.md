@@ -336,7 +336,8 @@ an OAuth 2.1 **Resource Server**. In that mode it:
   Authorization Server's [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)
   introspection endpoint (tokens may be opaque),
 - checks the token audience (`aud`) equals `MCP_RESOURCE_URL`
-  ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html)),
+  ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html)), and, when
+  `MCP_EXPECTED_ACCOUNT_ID` is set, that the token's `account_id` matches it,
 - serves [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) protected-resource
   metadata at `/.well-known/oauth-protected-resource<path>` and returns
   `401` with a `WWW-Authenticate: Bearer resource_metadata=...` challenge for
@@ -352,6 +353,7 @@ this server never sees user credentials and issues no tokens.
 | `MCP_RESOURCE_URL` | yes | This server's canonical URL, e.g. `https://mcp.example.com/mcp`. Used as the RFC 9728 `resource`, the expected token `aud`, and the Streamable HTTP path |
 | `MCP_AUTH_CLIENT_ID` / `MCP_AUTH_CLIENT_SECRET` | yes | Confidential client credentials this server uses to authenticate its introspection calls (HTTP Basic) |
 | `MCP_AUTH_INTROSPECTION_URL` | no | Explicit introspection endpoint; skips discovery when set |
+| `MCP_EXPECTED_ACCOUNT_ID` | no | When set, the introspected token's `account_id` must equal this value or the request is rejected — defence in depth for multi-tenant setups where the Authorization Server binds each deployment to one account |
 
 ```bash
 docker run -p 8000:8000 \

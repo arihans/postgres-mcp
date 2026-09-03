@@ -58,12 +58,14 @@ class MoebliIntrospectionVerifier:
         client_id: str,
         client_secret: str,
         introspection_url: str | None = None,
+        expected_account_id: str | None = None,
         cache_ttl: float = 45.0,
         http_timeout: float = 5.0,
     ) -> None:
         self._issuer = issuer.rstrip("/")
         self._resource = resource
         self._introspection_url = introspection_url
+        self._expected_account_id = expected_account_id or None
         self._basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
         self._cache_ttl = cache_ttl
         self._http_timeout = http_timeout
@@ -118,6 +120,15 @@ class MoebliIntrospectionVerifier:
             logger.warning("token audience %r != expected %r; rejecting", aud, self._resource)
             return None
 
+        account_id = body.get("account_id")
+        if self._expected_account_id is not None and account_id != self._expected_account_id:
+            logger.warning(
+                "token account_id %r != expected %r; rejecting",
+                account_id,
+                self._expected_account_id,
+            )
+            return None
+
         exp = body.get("exp")
         validated = MoebliAccessToken(
             token=token,
@@ -125,7 +136,7 @@ class MoebliIntrospectionVerifier:
             scopes=_split_scope(body.get("scope")),
             expires_at=exp if isinstance(exp, int) else None,
             resource=aud,
-            account_id=body.get("account_id"),
+            account_id=account_id,
             sub=body.get("sub"),
         )
 

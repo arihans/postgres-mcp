@@ -57,14 +57,21 @@ def _build_mcp() -> FastMCP:
 
     issuer = os.environ["MCP_AUTH_ISSUER"]
     resource = os.environ["MCP_RESOURCE_URL"]
+    expected_account_id = os.environ.get("MCP_EXPECTED_ACCOUNT_ID")
     verifier = MoebliIntrospectionVerifier(
         issuer=issuer,
         resource=resource,
         client_id=os.environ["MCP_AUTH_CLIENT_ID"],
         client_secret=os.environ["MCP_AUTH_CLIENT_SECRET"],
         introspection_url=os.environ.get("MCP_AUTH_INTROSPECTION_URL"),
+        expected_account_id=expected_account_id,
     )
-    logger.info("OAuth resource-server mode: issuer=%s resource=%s", issuer, resource)
+    logger.info(
+        "OAuth resource-server mode: issuer=%s resource=%s account_pin=%s",
+        issuer,
+        resource,
+        expected_account_id or "off",
+    )
     return FastMCP(
         "postgres-mcp",
         token_verifier=verifier,
